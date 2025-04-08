@@ -2,152 +2,156 @@ import streamlit as st
 import pandas as pd
 import random
 from datetime import datetime
+import textwrap
+from io import BytesIO
+import pdfkit
+import tempfile
 
-st.set_page_config(page_title="Nashik Bill Generator", layout="centered")
+st.set_page_config(page_title="🗳️ Nashik Random Bill Generator", layout="centered")
 
-# Load and clean restaurant CSV
-restaurant_df = pd.read_csv("restaurant.csv")
-restaurant_df.columns = restaurant_df.columns.str.strip().str.lower()
-restaurant_df.rename(columns={
-    "restaurant name": "Restaurant Name",
-    "tagline": "Tagline",
-    "location": "Location"
-}, inplace=True)
+# Load data
+menu_df = pd.read_csv("menu.csv", encoding="utf-8")
+restaurant_df = pd.read_csv("restaurant.csv", encoding="utf-8")
 
-# Load and clean menu CSV
-menu_df = pd.read_csv("menu.csv")
-menu_df.columns = menu_df.columns.str.strip().str.lower()
-menu_df.rename(columns={
-    "dish name": "Dish Name",
-    "rate": "Rate",
-    "dish": "Dish Name",   # fallback
-    "amount": "Rate"       # fallback
-}, inplace=True)
+# Clean column names
+menu_df.columns = menu_df.columns.str.strip()
+restaurant_df.columns = restaurant_df.columns.str.strip()
 
-# Step 1: Get available locations and ask user to pick one
-locations = restaurant_df["Location"].dropna().unique().tolist()
-locations.sort()
+# Rename columns
+menu_df.rename(columns={"Category": "Category", "Dish Name": "Dish", "Rate": "Rate"}, inplace=True)
+restaurant_df.rename(columns={"Restaurant Name": "Restaurant Name", "Tagline": "Tagline", "Location": "Location"}, inplace=True)
 
-selected_location = st.selectbox("📍 Select Location", options=locations)
+# App Title
+st.title("🍽️ Nashik Random Bill Generator")
 
-# Step 2: Filter restaurants by selected location
+# Select location
+locations = sorted(restaurant_df["Location"].dropna().unique().tolist())
+selected_location = st.selectbox("📍 Select Location", locations)
+
+# Filter restaurants
 filtered_restaurants = restaurant_df[restaurant_df["Location"] == selected_location]
-
-# Step 3: Pick a restaurant from that location
 if filtered_restaurants.empty:
     st.error("❌ No restaurants found for this location.")
     st.stop()
-else:
-    restaurant = filtered_restaurants.sample(1).iloc[0]
 
-# User input for desired total
-desired_total = st.number_input("💰 Enter Desired Bill Amount (₹)", min_value=50, max_value=5000, value=300, step=10)
+# Random restaurant from selected location
+restaurant = filtered_restaurants.sample(1).iloc[0]
 
-# Try dish combinations until total ≈ desired_total
-found = False
-max_attempts = 1000
-for _ in range(max_attempts):
-    sample_dishes = menu_df.sample(random.randint(3, 8)).copy()
-    sample_dishes["Qty"] = 1
-    sample_dishes["Amount"] = sample_dishes["Rate"]
-    total = sample_dishes["Amount"].sum()
-    if abs(total - desired_total) <= 10:
-        dishes = sample_dishes
-        total_amount = total
-        found = True
-        break
-
-if not found:
-    st.error("❌ Could not find dish combination close to desired amount. Try increasing range or reducing precision.")
-    st.stop()
-
-# Date selector (defaults to today)
+# User inputs
+total_amount = st.number_input("💰 Enter Total Bill Amount", min_value=50, step=50)
 selected_date = st.date_input("🗓️ Select Bill Date", value=datetime.now().date())
-
-# Optional: Time is always current (or you can make it user-selectable too)
 now = datetime.now()
 date_str = selected_date.strftime("%d-%b-%Y")
-time_str = now.strftime("%I:%M %p")  # Keep current time
+time_str = now.strftime("%I:%M %p")
 
-# Thermal-style 32-char layout bill text
-def generate_bill_text():
-    lines = []
-    lines.append(f"{restaurant['Restaurant Name']:^32}")
-    lines.append(f"{restaurant['Tagline']:^32}")
-    lines.append(f"{restaurant['Location']:^32}")
-    lines.append(f"{date_str}  {time_str:^14}")
-    lines.append("-" * 32)
-    lines.append(f"{'Qty':<4} {'Item':<20} {'Amt':>6}")
-    lines.append("-" * 32)
+# Artistic font options
+font_options = [
+    "Impact", "Cursive", "Georgia", "Courier New", "Monospace",
+    "Brush Script MT", "Lucida Handwriting", "Papyrus", "Comic Sans MS", "Copperplate"
+]
+selected_font = st.selectbox("🎨 Choose Hotel Name Font Style", font_options)
 
-    for _, row in dishes.iterrows():
-        name = str(row["Dish Name"])[:20]
-        qty = row["Qty"]
-        amt = row["Amount"]
-        lines.append(f"{qty:<4} {name:<20} ₹{amt:>5.0f}")
+# Thank-you message options
+thank_you_messages = [
+    "धन्यवाद! Visit Again 🙏",
+    "आपली सेवा करण्यास आनंद झाला!",
+    "Thank you! Come Again 😊",
+    "पुन्हा भेटूया! धन्यवाद 🙏",
+    "Thanks for visiting! 🙌",
+    "आमच्या हॉटेलला भेट दिल्याबद्दल धन्यवाद!",
+    "आपके आने के लिए धन्यवाद! फिर आइए!",
+    "Thank you for your visit, come back soon!"
+]
 
-    lines.append("-" * 32)
-    lines.append(f"{'Total':>26} ₹{total_amount:>5.0f}")
-    lines.append("-" * 32)
-    lines.append(f"{'🙏 धन्यवाद! पुन्हा या! 🙏':^32}")
-    return "\n".join(lines)
+custom_message = st.text_input("✍️ Custom Thank-You Message (optional)")
+random_thanks = st.checkbox("🎲 Use Random Thank-You Message", value=True)
 
-bill_text = generate_bill_text()
+# Generate button
+if st.button("🔀 Generate Bill"):
+    # Dish selection
+    possible_dishes = menu_df[menu_df["Rate"] <= total_amount].copy()
+    selected_dishes = []
+    total = 0
 
-# Display on screen
-st.markdown("### 🧾 Thermal Bill Preview")
-st.markdown(
-    f"<pre style='font-size:14px; font-family:monospace;' id='bill'>{bill_text}</pre>",
-    unsafe_allow_html=True
-)
+    while not possible_dishes.empty and total < total_amount:
+        dish = possible_dishes.sample(1).iloc[0]
+        if total + dish["Rate"] <= total_amount:
+            selected_dishes.append(dish)
+            total += dish["Rate"]
+        possible_dishes = possible_dishes[possible_dishes["Dish"] != dish["Dish"]]
 
-# Print Button
-st.components.v1.html("""
-    <script>
-        function printBill() {
-            var billContent = document.getElementById('bill').innerText;
-            var printWindow = window.open('', '', 'height=600,width=300');
-            printWindow.document.write('<html><head><title>Print Bill</title>');
-            printWindow.document.write('<style>body{font-family:monospace; font-size:13px; white-space:pre;}</style>');
-            printWindow.document.write('</head><body><pre>');
-            printWindow.document.write(billContent);
-            printWindow.document.write('</pre></body></html>');
-            printWindow.document.close();
-            printWindow.print();
+    # Final thank-you line
+    thank_you = custom_message if custom_message else random.choice(thank_you_messages) if random_thanks else thank_you_messages[0]
+
+    # Generate random table and bill number
+    table_no = random.randint(1, 20)
+    bill_no = random.randint(1, 5000)
+
+    # Font styling
+    font_style = textwrap.dedent("""
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari&display=swap');
+        @media print {
+            body {
+                width: 58mm;
+                font-family: 'Noto Sans Devanagari', 'Mangal', 'Courier New', monospace;
+                font-size: 12px;
+            }
+            .no-print { display: none; }
         }
-    </script>
-    <button onclick="printBill()" style="font-size:18px;padding:10px;margin-top:10px;">🖨️ Print Bill</button>
-""", height=100)
+        </style>
+    """)
+    st.markdown(font_style, unsafe_allow_html=True)
 
-# Regenerate Bill
-if st.button("🔁 Generate Another Bill"):
-    st.rerun()
+    # Build bill HTML
+    bill_html = textwrap.dedent(f"""
+        <div style='width:58mm; font-family: "Noto Sans Devanagari", "Mangal", monospace;'>
+            <h3 style="
+                text-align:center;
+                font-family: '{selected_font}', 'Courier New', monospace;
+                letter-spacing: 1px;
+                font-size: 18px;
+                text-shadow: 1px 1px 0 #ccc;
+                margin-bottom: 4px;">
+                {restaurant['Restaurant Name'].upper()}
+            </h3>
+            <p style='text-align:center;'>{restaurant['Tagline']}</p>
+            <hr>
+            <p>Bill No: {bill_no} | Table No: {table_no}</p>
+            <p>{date_str} {time_str}</p>
+            <hr>
+            <table style='width:100%; font-size: 12px; border-collapse: collapse;'>
+    """)
 
-# Print Preview (HTML Section)
-bill_html = "\n".join(bill_lines)
+    for item in selected_dishes:
+        bill_html += f"<tr><td>{item['Dish']}</td><td style='text-align:right;'>{item['Rate']:.0f}</td></tr>\n"
 
-# Show bill in web page
-st.markdown(f"<div id='bill'>{bill_html}</div>", unsafe_allow_html=True)
+    bill_html += f"<tr><td><b>Total</b></td><td style='text-align:right;'><b>{total:.0f}</b></td></tr>"
+    bill_html += f"</table><hr><p style='text-align:center;'>{thank_you}</p></div>"
 
-# Inject Print Button using HTML + JS
-st.markdown("""
-    <br>
-    <button onclick="window.print()" style="padding:10px 20px;font-size:16px;border:none;background:#0c74f5;color:white;border-radius:5px;cursor:pointer;">
-        🖨️ Print Bill
-    </button>
-""", unsafe_allow_html=True)
+    # Display the bill content
+    st.markdown(f"<div id='bill'>{bill_html}</div>", unsafe_allow_html=True)
 
-bill_lines = [f"""
-<style>
-@media print {{
-  body {{
-    width: 58mm;
-    font-family: 'Courier New', monospace;
-    font-size: 12px;
-  }}
-  .no-print {{ display: none; }}
-}}
-</style>
-<div style='font-family:monospace; width:58mm;'>
-"""]
+    # Print button
+    st.markdown("""
+        <div class="no-print" style="text-align:center; margin-top: 10px;">
+            <button onclick="window.print()" 
+                style="padding:10px 20px;font-size:16px;border:none;
+                       background:#0c74f5;color:white;border-radius:5px;cursor:pointer;">
+                🖰 Print Bill
+            </button>
+        </div>
+    """, unsafe_allow_html=True)
 
+    # PDF generation using pdfkit
+    if st.button("📄 Download PDF"):
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+            config = pdfkit.configuration()
+            pdfkit.from_string(bill_html, tmp_pdf.name, configuration=config)
+            with open(tmp_pdf.name, "rb") as f:
+                st.download_button(
+                    label="⬇️ Download Bill PDF",
+                    data=f,
+                    file_name="random_bill.pdf",
+                    mime="application/pdf"
+                )
