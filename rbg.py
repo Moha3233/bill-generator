@@ -4,7 +4,7 @@ import random
 from datetime import datetime
 import textwrap
 
-st.set_page_config(page_title="🗳️ Nashik Random Bill Generator", layout="centered")
+st.set_page_config(page_title="🗳️ Bill Generator", layout="centered")
 
 # Load data
 menu_df = pd.read_csv("menu.csv", encoding="utf-8")
@@ -19,7 +19,7 @@ menu_df.rename(columns={"Category": "Category", "Dish Name": "Dish", "Rate": "Ra
 restaurant_df.rename(columns={"Restaurant Name": "Restaurant Name", "Tagline": "Tagline", "Location": "Location"}, inplace=True)
 
 # App Title
-st.title("🍽️ Nashik Random Bill Generator")
+st.title("🍽️ Bill Generator")
 
 # Select location
 locations = sorted(restaurant_df["Location"].dropna().unique().tolist())
