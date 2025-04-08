@@ -3,9 +3,6 @@ import pandas as pd
 import random
 from datetime import datetime
 import textwrap
-from io import BytesIO
-import pdfkit
-import tempfile
 
 st.set_page_config(page_title="🗳️ Nashik Random Bill Generator", layout="centered")
 
@@ -142,16 +139,3 @@ if st.button("🔀 Generate Bill"):
             </button>
         </div>
     """, unsafe_allow_html=True)
-
-    # PDF generation using pdfkit
-    if st.button("📄 Download PDF"):
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
-            config = pdfkit.configuration()
-            pdfkit.from_string(bill_html, tmp_pdf.name, configuration=config)
-            with open(tmp_pdf.name, "rb") as f:
-                st.download_button(
-                    label="⬇️ Download Bill PDF",
-                    data=f,
-                    file_name="random_bill.pdf",
-                    mime="application/pdf"
-                )
