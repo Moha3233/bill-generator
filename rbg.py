@@ -122,3 +122,32 @@ st.components.v1.html("""
 # Regenerate Bill
 if st.button("🔁 Generate Another Bill"):
     st.rerun()
+
+# Print Preview (HTML Section)
+bill_html = "\n".join(bill_lines)
+
+# Show bill in web page
+st.markdown(f"<div id='bill'>{bill_html}</div>", unsafe_allow_html=True)
+
+# Inject Print Button using HTML + JS
+st.markdown("""
+    <br>
+    <button onclick="window.print()" style="padding:10px 20px;font-size:16px;border:none;background:#0c74f5;color:white;border-radius:5px;cursor:pointer;">
+        🖨️ Print Bill
+    </button>
+""", unsafe_allow_html=True)
+
+bill_lines = [f"""
+<style>
+@media print {{
+  body {{
+    width: 58mm;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+  }}
+  .no-print {{ display: none; }}
+}}
+</style>
+<div style='font-family:monospace; width:58mm;'>
+"""]
+
