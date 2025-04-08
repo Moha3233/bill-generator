@@ -4,7 +4,7 @@ import random
 from datetime import datetime
 import textwrap
 
-st.set_page_config(page_title="🗳️ Bill Generator", layout="centered")
+st.set_page_config(page_title="🗳️ Nashik Random Bill Generator", layout="centered")
 
 # Load data
 menu_df = pd.read_csv("menu.csv", encoding="utf-8")
@@ -18,12 +18,8 @@ restaurant_df.columns = restaurant_df.columns.str.strip()
 menu_df.rename(columns={"Category": "Category", "Dish Name": "Dish", "Rate": "Rate"}, inplace=True)
 restaurant_df.rename(columns={"Restaurant Name": "Restaurant Name", "Tagline": "Tagline", "Location": "Location"}, inplace=True)
 
-# Debug: Show column names in app
-st.write("🧪 Menu CSV Columns:", menu_df.columns.tolist())
-st.write("🧪 Restaurant CSV Columns:", restaurant_df.columns.tolist())
-
 # App Title
-st.title("🍽️ Bill Generator")
+st.title("🍽️ Nashik Random Bill Generator")
 
 # Select location
 locations = sorted(restaurant_df["Location"].dropna().unique().tolist())
@@ -88,25 +84,31 @@ if st.button("🔀 Generate Bill"):
     table_no = random.randint(1, 20)
     bill_no = random.randint(1, 5000)
 
-    # Font styling
-    font_style = textwrap.dedent("""
-        <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari&display=swap');
-        @media print {
-            body {
-                width: 58mm;
-                font-family: 'Noto Sans Devanagari', 'Mangal', 'Courier New', monospace;
-                font-size: 12px;
-            }
-            .no-print { display: none; }
+    # Styling for print-only content
+    bill_style = """
+    <style>
+    @media print {
+        body * {
+            visibility: hidden;
         }
-        </style>
-    """)
-    st.markdown(font_style, unsafe_allow_html=True)
+        #bill, #bill * {
+            visibility: visible;
+        }
+        #bill {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 58mm;
+            font-family: 'Noto Sans Devanagari', 'Mangal', monospace;
+            font-size: 12px;
+        }
+    }
+    </style>
+    """
 
     # Build bill HTML
     bill_html = textwrap.dedent(f"""
-        <div style='width:58mm; font-family: "Noto Sans Devanagari", "Mangal", monospace;'>
+        <div id='bill' style='width:58mm; font-family: "Noto Sans Devanagari", "Mangal", monospace;'>
             <h3 style="
                 text-align:center;
                 font-family: '{selected_font}', 'Courier New', monospace;
@@ -130,16 +132,8 @@ if st.button("🔀 Generate Bill"):
     bill_html += f"<tr><td><b>Total</b></td><td style='text-align:right;'><b>{total:.0f}</b></td></tr>"
     bill_html += f"</table><hr><p style='text-align:center;'>{thank_you}</p></div>"
 
-    # Display the bill content
-    st.markdown(f"<div id='bill'>{bill_html}</div>", unsafe_allow_html=True)
+    # Display the bill content with print styles
+    st.markdown(bill_style + bill_html, unsafe_allow_html=True)
 
-    # Print button
-    st.markdown("""
-        <div class="no-print" style="text-align:center; margin-top: 10px;">
-            <button onclick="window.print()" 
-                style="padding:10px 20px;font-size:16px;border:none;
-                       background:#0c74f5;color:white;border-radius:5px;cursor:pointer;">
-                🖰 Print Bill
-            </button>
-        </div>
-    """, unsafe_allow_html=True)
+    # Print instruction
+    st.markdown("<p style='text-align:center;'>🖨️ Use Ctrl+P or right-click to print this bill</p>", unsafe_allow_html=True)
