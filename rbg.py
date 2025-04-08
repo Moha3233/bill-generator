@@ -18,6 +18,10 @@ restaurant_df.columns = restaurant_df.columns.str.strip()
 menu_df.rename(columns={"Category": "Category", "Dish Name": "Dish", "Rate": "Rate"}, inplace=True)
 restaurant_df.rename(columns={"Restaurant Name": "Restaurant Name", "Tagline": "Tagline", "Location": "Location"}, inplace=True)
 
+# Debug: Show column names in app
+st.write("🧪 Menu CSV Columns:", menu_df.columns.tolist())
+st.write("🧪 Restaurant CSV Columns:", restaurant_df.columns.tolist())
+
 # App Title
 st.title("🍽️ Bill Generator")
 
